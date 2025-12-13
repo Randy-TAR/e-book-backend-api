@@ -22,8 +22,25 @@ def add_book(data):
     return serialize_book(new_book)
 
 
-def get_all_books():
-    return [serialize_book(book) for book in books.find()]
+# def get_all_books():
+#     return [serialize_book(book) for book in books.find()]
+def get_all_books(page: int = 1, limit: int = 10):
+    skip = (page - 1) * limit
+
+    total = books_collection.count_documents({})
+    books = []
+
+    for book in books_collection.find().skip(skip).limit(limit):
+        book["id"] = str(book["_id"])
+        del book["_id"]
+        books.append(book)
+
+    return {
+        "page": page,
+        "limit": limit,
+        "total": total,
+        "data": books
+    }
 
 
 def get_book(book_id):

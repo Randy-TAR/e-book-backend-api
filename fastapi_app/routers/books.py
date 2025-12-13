@@ -2,6 +2,7 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from ..controllers import books_controller
 import shutil, os
 from uuid import uuid4
+from fastapi import Query
 
 router = APIRouter(
     prefix="/books",
@@ -60,10 +61,15 @@ def upload_book(
 # ------------------------------------------
 # Get All Books
 # ------------------------------------------
+# @router.get("/")
+# def list_books():
+#     return books_controller.get_all_books()
 @router.get("/")
-def list_books():
-    return books_controller.get_all_books()
-
+def list_books(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=50)
+):
+    return books_controller.get_all_books(page, limit)
 
 # ------------------------------------------
 # Get Single Book

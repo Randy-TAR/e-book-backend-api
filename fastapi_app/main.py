@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from .routers import books, blogs, ai_agent, analytics
 
 app = FastAPI(
-    title="E-Book LMS API",
+    title="E-Book & Blog API",
     version="1.0"
 )
 
