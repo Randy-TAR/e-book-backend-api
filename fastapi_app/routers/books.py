@@ -1,8 +1,11 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from ..controllers import books_controller
 import shutil, os
 from uuid import uuid4
 from fastapi import Query
+from fastapi_app.schemas.books import BookCreate
+from fastapi_app.core.security import admin_required
+from fastapi_app.utils.admin_logger import log_admin_action
 
 router = APIRouter(
     prefix="/books",
@@ -16,46 +19,46 @@ COVER_DIR = "uploads/covers/"
 # ------------------------------------------
 # Upload Book
 # ------------------------------------------
-@router.post("/upload")
-def upload_book(
-    title: str = Form(...),
-    author: str = Form(...),
-    description: str = Form(...),
-    category: str = Form(...),
-    tags: str = Form(...),
-    pdf_file: UploadFile = File(...),
-    cover_image: UploadFile = File(None)
-):
-    # Save PDF
-    pdf_filename = f"{uuid4()}_{pdf_file.filename}"
-    pdf_path = os.path.join(UPLOAD_DIR, pdf_filename)
+# @router.post("/upload", dependencies=[Depends(admin_required)])
+# def upload_book(
+#     title: str = Form(...),
+#     author: str = Form(...),
+#     description: str = Form(...),
+#     category: str = Form(...),
+#     tags: str = Form(...),
+#     pdf_file: UploadFile = File(...),
+#     cover_image: UploadFile = File(None)
+# ):
+#     # Save PDF
+#     pdf_filename = f"{uuid4()}_{pdf_file.filename}"
+#     pdf_path = os.path.join(UPLOAD_DIR, pdf_filename)
 
-    with open(pdf_path, "wb") as buffer:
-        shutil.copyfileobj(pdf_file.file, buffer)
+#     with open(pdf_path, "wb") as buffer:
+#         shutil.copyfileobj(pdf_file.file, buffer)
 
-    # Save cover image (optional)
-    cover_url = None
-    if cover_image:
-        cover_filename = f"{uuid4()}_{cover_image.filename}"
-        cover_path = os.path.join(COVER_DIR, cover_filename)
+#     # Save cover image (optional)
+#     cover_url = None
+#     if cover_image:
+#         cover_filename = f"{uuid4()}_{cover_image.filename}"
+#         cover_path = os.path.join(COVER_DIR, cover_filename)
 
-        with open(cover_path, "wb") as buffer:
-            shutil.copyfileobj(cover_image.file, buffer)
+#         with open(cover_path, "wb") as buffer:
+#             shutil.copyfileobj(cover_image.file, buffer)
 
-        cover_url = cover_path
+#         cover_url = cover_path
 
-    # Prepare data for DB
-    data = {
-        "title": title,
-        "author": author,
-        "description": description,
-        "category": category,
-        "tags": tags.split(","),
-        "pdf_url": pdf_path,
-        "cover_url": cover_url,
-    }
+#     # Prepare data for DB
+#     data = {
+#         "title": title,
+#         "author": author,
+#         "description": description,
+#         "category": category,
+#         "tags": tags.split(","),
+#         "pdf_url": pdf_path,
+#         "cover_url": cover_url,
+#     }
 
-    return books_controller.add_book(data)
+#     return books_controller.add_book(data)
 
 
 # ------------------------------------------
@@ -121,7 +124,7 @@ def read_online(book_id: str):
 # ------------------------------------------
 # Update Book
 # ------------------------------------------
-@router.put("/{book_id}")
+@router.put("/{book_id}", dependencies=[Depends(admin_required)])
 def update_book(book_id: str, title: str = Form(None), author: str = Form(None),
                 description: str = Form(None), category: str = Form(None),
                 tags: str = Form(None)):
@@ -138,7 +141,39 @@ def update_book(book_id: str, title: str = Form(None), author: str = Form(None),
 # ------------------------------------------
 # Delete Book
 # ------------------------------------------
+# @router.delete("/{book_id}", dependencies=[Depends(admin_required)])
+# def delete_book(book_id: str):
+#     books_controller.delete_book(book_id)
+#     return {"message": "Book deleted"}
+
+
+# ------------------------------------------
+# Create Book
+# ------------------------------------------
+@router.post("/")
+def create_book(book: BookCreate, admin=Depends(admin_required)):
+    result = db.books.insert_one(book.dict())
+
+    log_admin_action(
+        admin=admin,
+        action="BOOK_CREATED",
+        resource_id=str(result.inserted_id)
+    )
+
+    return {"message": "Book created"}
+
+
+# ------------------------------------------
+# Delete Book
+# ------------------------------------------
 @router.delete("/{book_id}")
-def delete_book(book_id: str):
-    books_controller.delete_book(book_id)
+def delete_book(book_id: str, admin=Depends(admin_required)):
+    db.books.delete_one({"_id": ObjectId(book_id)})
+
+    log_admin_action(
+        admin=admin,
+        action="BOOK_DELETED",
+        resource_id=book_id
+    )
+
     return {"message": "Book deleted"}

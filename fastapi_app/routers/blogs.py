@@ -9,43 +9,57 @@
 # def get_blogs():
 #     return {"message": "Blogs endpoint working"}
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
+from fastapi_app.core.security import admin_required
+from fastapi_app.schemas.blogs import BlogCreate
 from fastapi.responses import FileResponse
 from typing import Optional
 import uuid
 import os
 from fastapi import Query
 from ..controllers import blogs_controller
+from fastapi_app.utils.admin_logger import log_admin_action
 
 router = APIRouter(prefix="/blogs", tags=["Blogs"])
 
 UPLOAD_DIR = "uploads/blogs"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-@router.post("/create")
-async def create_blog(
-    title: str = Form(...),
-    content: str = Form(...),
-    tags: str = Form(""),
-    image: Optional[UploadFile] = File(None)
-):
-    image_path = None
+# @router.post("/create", dependencies=[Depends(admin_required)])
+# async def create_blog(
+#     title: str = Form(...),
+#     content: str = Form(...),
+#     tags: str = Form(""),
+#     image: Optional[UploadFile] = File(None)
+# ):
+#     image_path = None
 
-    if image:
-        filename = f"{uuid.uuid4()}_{image.filename}"
-        image_path = f"{UPLOAD_DIR}/{filename}"
-        with open(image_path, "wb") as f:
-            f.write(await image.read())
+#     if image:
+#         filename = f"{uuid.uuid4()}_{image.filename}"
+#         image_path = f"{UPLOAD_DIR}/{filename}"
+#         with open(image_path, "wb") as f:
+#             f.write(await image.read())
 
-    blog_data = {
-        "title": title,
-        "content": content,
-        "tags": [tag.strip() for tag in tags.split(",") if tag],
-        "image": image_path
-    }
+#     blog_data = {
+#         "title": title,
+#         "content": content,
+#         "tags": [tag.strip() for tag in tags.split(",") if tag],
+#         "image": image_path
+#     }
 
-    blog_id = blogs_controller.create_blog(blog_data)
-    return {"message": "Blog created", "id": blog_id}
+#     blog_id = blogs_controller.create_blog(blog_data)
+#     return {"message": "Blog created", "id": blog_id}
+@router.post("/")
+def create_blog(blog: BlogCreate, admin=Depends(admin_required)):
+    result = db.blogs.insert_one(blog.dict())
+
+    log_admin_action(
+        admin=admin,
+        action="BLOG_CREATED",
+        resource_id=str(result.inserted_id)
+    )
+
+    return {"message": "Blog created"}
 
 
 # @router.get("/")
@@ -72,7 +86,7 @@ def search(keyword: str):
     return blogs_controller.search_blogs(keyword)
 
 
-@router.put("/{blog_id}")
+@router.put("/{blog_id}", dependencies=[Depends(admin_required)])
 def update_blog(
     blog_id: str,
     title: Optional[str] = Form(None),
@@ -91,7 +105,7 @@ def update_blog(
     return {"message": "Blog updated"}
 
 
-@router.delete("/{blog_id}")
+@router.delete("/{blog_id}", dependencies=[Depends(admin_required)])
 def delete_blog(blog_id: str):
     blogs_controller.delete_blog(blog_id)
     return {"message": "Blog deleted"}
